@@ -5,6 +5,8 @@ import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.Timer;
@@ -15,20 +17,46 @@ import javax.imageio.ImageIO;
 import javax.swing.ImageIcon;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
+import javax.swing.JOptionPane;
+import javax.swing.JButton;
+import java.awt.event.ActionListener;
+import java.awt.event.ActionEvent;
 
 public class ShootGame extends JPanel {
-	public static final int WIDTH = 400; // Ãæ°å¿í
-	public static final int HEIGHT = 654; // Ãæ°å¸ß
-	/** ÓÎÏ·µÄµ±Ç°×´Ì¬: START RUNNING PAUSE GAME_OVER */
+	public static final int WIDTH = 600;
+	public static final int HEIGHT = 800;
+	
 	private int state;
 	private static final int START = 0;
 	private static final int RUNNING = 1;
 	private static final int PAUSE = 2;
 	private static final int GAME_OVER = 3;
+	private static final int DIFFICULTY_SELECT = 4;
 
-	private int score = 0; // µÃ·Ö
-	private Timer timer; // ¶¨Ê±Æ÷
-	private int intervel = 1000 / 100; // Ê±¼ä¼ä¸ô(ºÁÃë)
+	private int score = 0;
+	private int missedCount = 0;
+	private Timer timer;
+	private int intervel = 1000 / 100;
+	
+	private int gameTime = 30;
+	private int timeCounter = 0;
+	private int elapsedSeconds = 0;
+	
+	public static final int DIFFICULTY_EASY = 1;
+	public static final int DIFFICULTY_MEDIUM = 2;
+	public static final int DIFFICULTY_HARD = 3;
+	private static int currentDifficulty = DIFFICULTY_MEDIUM;
+	
+	private static int enemyBaseSpeed = 2;
+	private static int spawnInterval = 50;
+	
+	public static int getCurrentDifficulty() {
+		return currentDifficulty;
+	}
+	
+	public static int getEnemyBaseSpeed() {
+		return enemyBaseSpeed;
+	}
 
 	public static BufferedImage background;
 	public static BufferedImage start;
@@ -39,12 +67,17 @@ public class ShootGame extends JPanel {
 	public static BufferedImage hero1;
 	public static BufferedImage pause;
 	public static BufferedImage gameover;
+	public static BufferedImage meteor;
+	public static BufferedImage ufo;
+	public static BufferedImage satellite;
+	public static BufferedImage rocket;
+	public static BufferedImage spaceBg;
 
-	private FlyingObject[] flyings = {}; // µĞ»úÊı×é
-	private Bullet[] bullets = {}; // ×Óµ¯Êı×é
-	private Hero hero = new Hero(); // Ó¢ĞÛ»ú
+	private FlyingObject[] flyings = {};
+	private Bullet[] bullets = {};
+	private Hero hero = new Hero();
 
-	static { // ¾²Ì¬´úÂë¿é£¬³õÊ¼»¯Í¼Æ¬×ÊÔ´
+	static {
 		try {
 			background = ImageIO.read(ShootGame.class
 					.getResource("background.png"));
@@ -58,92 +91,341 @@ public class ShootGame extends JPanel {
 			pause = ImageIO.read(ShootGame.class.getResource("pause.png"));
 			gameover = ImageIO
 					.read(ShootGame.class.getResource("gameover.png"));
+			meteor = airplane;
+			ufo = bee;
+			satellite = airplane;
+			rocket = bullet;
+			spaceBg = background;
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
 
-	/** »­ */
 	@Override
 	public void paint(Graphics g) {
-		g.drawImage(background, 0, 0, null); // »­±³¾°Í¼
-		paintHero(g); // »­Ó¢ĞÛ»ú
-		paintBullets(g); // »­×Óµ¯
-		paintFlyingObjects(g); // »­·ÉĞĞÎï
-		paintScore(g); // »­·ÖÊı
-		paintState(g); // »­ÓÎÏ·×´Ì¬
+		drawSpaceBackground(g);
+		paintHero(g);
+		paintBullets(g);
+		paintFlyingObjects(g);
+		paintScore(g);
+		paintState(g);
+	}
+	
+	private void drawSpaceBackground(Graphics g) {
+		g.setColor(new Color(10, 10, 40));
+		g.fillRect(0, 0, WIDTH, HEIGHT);
+		
+		Random rand = new Random(12345);
+		for (int i = 0; i < 200; i++) {
+			int x = rand.nextInt(WIDTH);
+			int y = rand.nextInt(HEIGHT);
+			int size = rand.nextInt(3) + 1;
+			float brightness = rand.nextFloat() * 0.8f + 0.2f;
+			g.setColor(new Color(brightness, brightness, brightness));
+			g.fillOval(x, y, size, size);
+		}
+		
+		for (int i = 0; i < 30; i++) {
+			int x = rand.nextInt(WIDTH);
+			int y = rand.nextInt(HEIGHT);
+			float hue = rand.nextFloat();
+			g.setColor(Color.getHSBColor(hue, 0.3f, 0.8f));
+			g.fillOval(x, y, 2, 2);
+		}
 	}
 
-	/** »­Ó¢ĞÛ»ú */
 	public void paintHero(Graphics g) {
 		g.drawImage(hero.getImage(), hero.getX(), hero.getY(), null);
 	}
 
-	/** »­×Óµ¯ */
 	public void paintBullets(Graphics g) {
 		for (int i = 0; i < bullets.length; i++) {
 			Bullet b = bullets[i];
-			g.drawImage(b.getImage(), b.getX() - b.getWidth() / 2, b.getY(),
-					null);
+			g.setColor(new Color(255, 150, 50));
+			g.fillRect(b.getX() - 3, b.getY(), 6, 15);
+			g.setColor(new Color(255, 100, 0));
+			g.fillRect(b.getX() - 2, b.getY() + 15, 4, 8);
+			g.setColor(new Color(255, 200, 0));
+			g.fillRect(b.getX() - 1, b.getY() + 18, 2, 5);
+			g.setColor(Color.WHITE);
+			g.fillRect(b.getX() - 1, b.getY() + 2, 2, 5);
 		}
 	}
 
-	/** »­·ÉĞĞÎï */
 	public void paintFlyingObjects(Graphics g) {
 		for (int i = 0; i < flyings.length; i++) {
 			FlyingObject f = flyings[i];
-			g.drawImage(f.getImage(), f.getX(), f.getY(), null);
+			if (f instanceof Meteor) {
+				drawMeteor(g, (Meteor) f);
+			} else if (f instanceof UFO) {
+				drawUFO(g, (UFO) f);
+			} else if (f instanceof Satellite) {
+				drawSatellite(g, (Satellite) f);
+			} else if (f instanceof Airplane) {
+				drawEnemyPlane(g, (Airplane) f);
+			} else if (f instanceof Bee) {
+				drawRewardBee(g, (Bee) f);
+			} else {
+				g.drawImage(f.getImage(), f.getX(), f.getY(), null);
+			}
 		}
 	}
-
-	/** »­·ÖÊı */
-	public void paintScore(Graphics g) {
-		int x = 10; // x×ø±ê
-		int y = 25; // y×ø±ê
-		Font font = new Font(Font.SANS_SERIF, Font.BOLD, 22); // ×ÖÌå
-		g.setColor(new Color(0xFF0000));
-		g.setFont(font); // ÉèÖÃ×ÖÌå
-		g.drawString("SCORE:" + score, x, y); // »­·ÖÊı
-		y=y+20; // y×ø±êÔö20
-		g.drawString("LIFE:" + hero.getLife(), x, y); // »­Ãü
+	
+	private void drawEnemyPlane(Graphics g, Airplane plane) {
+		int x = plane.getX();
+		int y = plane.getY();
+		int w = plane.getWidth();
+		int h = plane.getHeight();
+		
+		g.setColor(new Color(180, 50, 50));
+		g.fillRect(x + w/4, y, w/2, h * 3/4);
+		
+		g.setColor(new Color(150, 40, 40));
+		g.fillRect(x, y + h/4, w, h/3);
+		
+		g.setColor(new Color(200, 70, 70));
+		g.fillRect(x + w/3, y - h/4, w/3, h/4);
+		
+		g.setColor(new Color(255, 200, 0));
+		g.fillOval(x + w/2 - 3, y + h/2 - 3, 6, 6);
+	}
+	
+	private void drawRewardBee(Graphics g, Bee bee) {
+		int x = bee.getX();
+		int y = bee.getY();
+		int w = bee.getWidth();
+		int h = bee.getHeight();
+		
+		g.setColor(new Color(255, 215, 0));
+		g.fillOval(x, y, w, h);
+		
+		g.setColor(Color.BLACK);
+		g.fillRect(x, y + h/3, w, 4);
+		g.fillRect(x, y + h*2/3, w, 4);
+		
+		g.setColor(new Color(200, 200, 255, 150));
+		g.fillOval(x - 8, y + h/4, 12, h/2);
+		g.fillOval(x + w - 4, y + h/4, 12, h/2);
+		
+		if (bee.getType() == Award.LIFE) {
+			g.setColor(Color.RED);
+			g.fillOval(x + w/2 - 5, y + h/2 - 3, 5, 5);
+			g.fillOval(x + w/2, y + h/2 - 3, 5, 5);
+			g.fillRect(x + w/2 - 4, y + h/2, 8, 6);
+		} else {
+			g.setColor(Color.ORANGE);
+			g.fillRect(x + w/2 - 1, y + h/4, 2, h/2);
+			g.fillRect(x + w/4, y + h/2 - 1, w/2, 2);
+		}
+	}
+	
+	private void drawMeteor(Graphics g, Meteor meteor) {
+		int x = meteor.getX();
+		int y = meteor.getY();
+		int w = meteor.getWidth();
+		int h = meteor.getHeight();
+		
+		g.setColor(new Color(139, 90, 43));
+		g.fillOval(x, y, w, h);
+		
+		g.setColor(new Color(101, 67, 33));
+		g.fillOval(x + w/4, y + h/4, w/3, h/3);
+		g.fillOval(x + w/2, y + h/2, w/4, h/4);
+		
+		g.setColor(new Color(255, 100, 50, 100));
+		for (int i = 0; i < 5; i++) {
+			g.fillOval(x - i * 3, y + h/2, 8 - i, 8 - i);
+		}
+	}
+	
+	private void drawUFO(Graphics g, UFO ufo) {
+		int x = ufo.getX();
+		int y = ufo.getY();
+		int w = ufo.getWidth();
+		int h = ufo.getHeight();
+		
+		g.setColor(new Color(180, 180, 200));
+		g.fillOval(x, y + h/3, w, h/3);
+		
+		g.setColor(new Color(100, 200, 255, 150));
+		g.fillOval(x + w/4, y, w/2, h/2);
+		
+		g.setColor(new Color(255, 50, 50));
+		for (int i = 0; i < 5; i++) {
+			g.fillOval(x + w/8 + i * w/5, y + h/2, 4, 4);
+		}
+		
+		g.setColor(new Color(50, 255, 100, 100));
+		g.fillRect(x + w/2 - 2, y + h, 4, 15);
+	}
+	
+	private void drawSatellite(Graphics g, Satellite sat) {
+		int x = sat.getX();
+		int y = sat.getY();
+		int w = sat.getWidth();
+		int h = sat.getHeight();
+		
+		g.setColor(new Color(220, 220, 220));
+		g.fillRect(x + w/4, y + h/4, w/2, h/2);
+		
+		g.setColor(new Color(50, 100, 200));
+		g.fillRect(x, y + h/3, w/4, h/3);
+		g.fillRect(x + w*3/4, y + h/3, w/4, h/3);
+		
+		g.setColor(Color.BLACK);
+		for (int i = 0; i < 3; i++) {
+			g.fillRect(x + 2, y + h/3 + i * 5, w/4 - 4, 2);
+			g.fillRect(x + w*3/4 + 2, y + h/3 + i * 5, w/4 - 4, 2);
+		}
+		
+		g.setColor(new Color(0, 255, 0));
+		g.fillOval(x + w/2 - 3, y + h/2 - 3, 6, 6);
 	}
 
-	/** »­ÓÎÏ·×´Ì¬ */
+	public void paintScore(Graphics g) {
+		int x = 10;
+		int y = 30;
+		Font font = new Font("å¾®è½¯é›…é»‘", Font.BOLD, 20);
+		
+		g.setColor(new Color(255, 215, 0));
+		g.setFont(font);
+		g.drawString("å¾—åˆ†: " + score, x, y);
+		
+		y += 28;
+		g.setColor(new Color(255, 100, 100));
+		g.drawString("æœªæ‹¦æˆª: " + missedCount, x, y);
+		
+		y += 28;
+		g.setColor(new Color(100, 255, 100));
+		g.drawString("ç”Ÿå‘½: " + hero.getLife(), x, y);
+		
+		y += 28;
+		g.setColor(new Color(100, 200, 255));
+		String diffStr = "éš¾åº¦: ";
+		if (currentDifficulty == DIFFICULTY_EASY) diffStr += "åˆçº§";
+		else if (currentDifficulty == DIFFICULTY_MEDIUM) diffStr += "ä¸­çº§";
+		else diffStr += "é«˜çº§";
+		g.drawString(diffStr, x, y);
+		
+		y += 28;
+		g.setColor(new Color(255, 255, 100));
+		int remaining = gameTime - elapsedSeconds;
+		if (remaining < 0) remaining = 0;
+		g.drawString("å‰©ä½™æ—¶é—´: " + remaining + "ç§’", x, y);
+		
+		if (state == START) {
+			g.setColor(new Color(255, 255, 255, 200));
+			Font bigFont = new Font("å¾®è½¯é›…é»‘", Font.BOLD, 28);
+			g.setFont(bigFont);
+			g.drawString("å¤ªç©ºæˆ˜æœº", WIDTH/2 - 80, 150);
+			
+			Font smallFont = new Font("å¾®è½¯é›…é»‘", Font.PLAIN, 18);
+			g.setFont(smallFont);
+			g.setColor(new Color(200, 200, 200));
+			g.drawString("ç”¨é¼ æ ‡æ§åˆ¶é£æœºç§»åŠ¨", WIDTH/2 - 90, 220);
+			g.drawString("æŒ‰ç©ºæ ¼é”®æš‚åœæ¸¸æˆ", WIDTH/2 - 85, 250);
+			g.drawString("æ¸¸æˆæ—¶é•¿30ç§’", WIDTH/2 - 65, 280);
+			
+			g.setColor(new Color(255, 215, 0));
+			g.drawString("ç‚¹å‡»é€‰æ‹©éš¾åº¦å¼€å§‹æ¸¸æˆ", WIDTH/2 - 100, 340);
+			
+			drawDifficultyButtons(g);
+		}
+	}
+	
+	private void drawDifficultyButtons(Graphics g) {
+		int btnY = 380;
+		int btnHeight = 50;
+		int spacing = 30;
+		
+		Font btnFont = new Font("å¾®è½¯é›…é»‘", Font.BOLD, 20);
+		g.setFont(btnFont);
+		
+		g.setColor(new Color(100, 200, 100));
+		g.fillRect(WIDTH/2 - 100, btnY, 200, btnHeight);
+		g.setColor(Color.WHITE);
+		g.drawRect(WIDTH/2 - 100, btnY, 200, btnHeight);
+		g.setColor(Color.BLACK);
+		g.drawString("åˆçº§ - ç®€å•æ¨¡å¼", WIDTH/2 - 75, btnY + 33);
+		
+		btnY += btnHeight + spacing;
+		g.setColor(new Color(255, 180, 50));
+		g.fillRect(WIDTH/2 - 100, btnY, 200, btnHeight);
+		g.setColor(Color.WHITE);
+		g.drawRect(WIDTH/2 - 100, btnY, 200, btnHeight);
+		g.setColor(Color.BLACK);
+		g.drawString("ä¸­çº§ - æ™®é€šæ¨¡å¼", WIDTH/2 - 75, btnY + 33);
+		
+		btnY += btnHeight + spacing;
+		g.setColor(new Color(255, 80, 80));
+		g.fillRect(WIDTH/2 - 100, btnY, 200, btnHeight);
+		g.setColor(Color.WHITE);
+		g.drawRect(WIDTH/2 - 100, btnY, 200, btnHeight);
+		g.setColor(Color.BLACK);
+		g.drawString("é«˜çº§ - å›°éš¾æ¨¡å¼", WIDTH/2 - 75, btnY + 33);
+	}
+
 	public void paintState(Graphics g) {
 		switch (state) {
-		case START: // Æô¶¯×´Ì¬
-			g.drawImage(start, 0, 0, null);
+		case START:
 			break;
-		case PAUSE: // ÔİÍ£×´Ì¬
-			g.drawImage(pause, 0, 0, null);
+		case PAUSE:
+			g.setColor(new Color(0, 0, 0, 150));
+			g.fillRect(0, 0, WIDTH, HEIGHT);
+			
+			g.setColor(new Color(255, 215, 0));
+			Font pauseFont = new Font("å¾®è½¯é›…é»‘", Font.BOLD, 36);
+			g.setFont(pauseFont);
+			g.drawString("æ¸¸æˆæš‚åœ", WIDTH/2 - 90, HEIGHT/2 - 20);
+			
+			Font smallFont = new Font("å¾®è½¯é›…é»‘", Font.PLAIN, 18);
+			g.setFont(smallFont);
+			g.setColor(Color.WHITE);
+			g.drawString("æŒ‰ç©ºæ ¼é”®ç»§ç»­æ¸¸æˆ", WIDTH/2 - 90, HEIGHT/2 + 30);
 			break;
-		case GAME_OVER: // ÓÎÏ·ÖÕÖ¹×´Ì¬
-			g.drawImage(gameover, 0, 0, null);
+		case GAME_OVER:
+			g.setColor(new Color(0, 0, 0, 180));
+			g.fillRect(0, 0, WIDTH, HEIGHT);
+			
+			Font gameOverFont = new Font("å¾®è½¯é›…é»‘", Font.BOLD, 40);
+			g.setFont(gameOverFont);
+			g.setColor(new Color(255, 80, 80));
+			g.drawString("æ¸¸æˆç»“æŸ", WIDTH/2 - 100, HEIGHT/2 - 80);
+			
+			Font resultFont = new Font("å¾®è½¯é›…é»‘", Font.BOLD, 24);
+			g.setFont(resultFont);
+			g.setColor(new Color(255, 215, 0));
+			g.drawString("æœ€ç»ˆå¾—åˆ†: " + score, WIDTH/2 - 80, HEIGHT/2 - 20);
+			
+			g.setColor(new Color(255, 100, 100));
+			g.drawString("æœªæ‹¦æˆªæ•°: " + missedCount, WIDTH/2 - 80, HEIGHT/2 + 20);
+			
+			Font smallFont = new Font("å¾®è½¯é›…é»‘", Font.PLAIN, 18);
+			g.setFont(smallFont);
+			g.setColor(Color.WHITE);
+			g.drawString("ç‚¹å‡»ä»»æ„ä½ç½®è¿”å›ä¸»èœå•", WIDTH/2 - 110, HEIGHT/2 + 80);
 			break;
 		}
 	}
 
 	public static void main(String[] args) {
-		JFrame frame = new JFrame("Fly");
-		ShootGame game = new ShootGame(); // Ãæ°å¶ÔÏó
-		frame.add(game); // ½«Ãæ°åÌí¼Óµ½JFrameÖĞ
-		frame.setSize(WIDTH, HEIGHT); // ÉèÖÃ´óĞ¡
-		frame.setAlwaysOnTop(true); // ÉèÖÃÆä×ÜÔÚ×îÉÏ
-		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); // Ä¬ÈÏ¹Ø±Õ²Ù×÷
-		frame.setIconImage(new ImageIcon("images/icon.jpg").getImage()); // ÉèÖÃ´°ÌåµÄÍ¼±ê
-		frame.setLocationRelativeTo(null); // ÉèÖÃ´°Ìå³õÊ¼Î»ÖÃ
-		frame.setVisible(true); // ¾¡¿ìµ÷ÓÃpaint
+		JFrame frame = new JFrame("å¤ªç©ºæˆ˜æœº");
+		ShootGame game = new ShootGame();
+		frame.add(game);
+		frame.setSize(WIDTH, HEIGHT);
+		frame.setAlwaysOnTop(true);
+		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		frame.setLocationRelativeTo(null);
+		frame.setVisible(true);
 
-		game.action(); // Æô¶¯Ö´ĞĞ
+		game.action();
 	}
 
-	/** Æô¶¯Ö´ĞĞ´úÂë */
 	public void action() {
-		// Êó±ê¼àÌıÊÂ¼ş
 		MouseAdapter l = new MouseAdapter() {
 			@Override
-			public void mouseMoved(MouseEvent e) { // Êó±êÒÆ¶¯
-				if (state == RUNNING) { // ÔËĞĞ×´Ì¬ÏÂÒÆ¶¯Ó¢ĞÛ»ú--ËæÊó±êÎ»ÖÃ
+			public void mouseMoved(MouseEvent e) {
+				if (state == RUNNING) {
 					int x = e.getX();
 					int y = e.getY();
 					hero.moveTo(x, y);
@@ -151,83 +433,159 @@ public class ShootGame extends JPanel {
 			}
 
 			@Override
-			public void mouseEntered(MouseEvent e) { // Êó±ê½øÈë
-				if (state == PAUSE) { // ÔİÍ£×´Ì¬ÏÂÔËĞĞ
-					state = RUNNING;
-				}
-			}
-
-			@Override
-			public void mouseExited(MouseEvent e) { // Êó±êÍË³ö
-				if (state == RUNNING) { // ÓÎÏ·Î´½áÊø£¬ÔòÉèÖÃÆäÎªÔİÍ£
-					state = PAUSE;
-				}
-			}
-
-			@Override
-			public void mouseClicked(MouseEvent e) { // Êó±êµã»÷
-				switch (state) {
-				case START:
-					state = RUNNING; // Æô¶¯×´Ì¬ÏÂÔËĞĞ
-					break;
-				case GAME_OVER: // ÓÎÏ·½áÊø£¬ÇåÀíÏÖ³¡
-					flyings = new FlyingObject[0]; // Çå¿Õ·ÉĞĞÎï
-					bullets = new Bullet[0]; // Çå¿Õ×Óµ¯
-					hero = new Hero(); // ÖØĞÂ´´½¨Ó¢ĞÛ»ú
-					score = 0; // Çå¿Õ³É¼¨
-					state = START; // ×´Ì¬ÉèÖÃÎªÆô¶¯
-					break;
+			public void mouseClicked(MouseEvent e) {
+				int mouseX = e.getX();
+				int mouseY = e.getY();
+				
+				if (state == START) {
+					int btnY = 380;
+					int btnHeight = 50;
+					int spacing = 30;
+					
+					if (mouseX >= WIDTH/2 - 100 && mouseX <= WIDTH/2 + 100) {
+						if (mouseY >= btnY && mouseY <= btnY + btnHeight) {
+							setDifficulty(DIFFICULTY_EASY);
+							startGame();
+						}
+						btnY += btnHeight + spacing;
+						if (mouseY >= btnY && mouseY <= btnY + btnHeight) {
+							setDifficulty(DIFFICULTY_MEDIUM);
+							startGame();
+						}
+						btnY += btnHeight + spacing;
+						if (mouseY >= btnY && mouseY <= btnY + btnHeight) {
+							setDifficulty(DIFFICULTY_HARD);
+							startGame();
+						}
+					}
+				} else if (state == GAME_OVER) {
+					showGameOverDialog();
 				}
 			}
 		};
-		this.addMouseListener(l); // ´¦ÀíÊó±êµã»÷²Ù×÷
-		this.addMouseMotionListener(l); // ´¦ÀíÊó±ê»¬¶¯²Ù×÷
+		this.addMouseListener(l);
+		this.addMouseMotionListener(l);
+		
+		this.setFocusable(true);
+		this.addKeyListener(new KeyAdapter() {
+			@Override
+			public void keyPressed(KeyEvent e) {
+				if (e.getKeyCode() == KeyEvent.VK_SPACE) {
+					if (state == RUNNING) {
+						state = PAUSE;
+					} else if (state == PAUSE) {
+						state = RUNNING;
+					}
+				}
+			}
+		});
 
-		timer = new Timer(); // Ö÷Á÷³Ì¿ØÖÆ
+		timer = new Timer();
 		timer.schedule(new TimerTask() {
 			@Override
 			public void run() {
-				if (state == RUNNING) { // ÔËĞĞ×´Ì¬
-					enterAction(); // ·ÉĞĞÎïÈë³¡
-					stepAction(); // ×ßÒ»²½
-					shootAction(); // Ó¢ĞÛ»úÉä»÷
-					bangAction(); // ×Óµ¯´ò·ÉĞĞÎï
-					outOfBoundsAction(); // É¾³ıÔ½½ç·ÉĞĞÎï¼°×Óµ¯
-					checkGameOverAction(); // ¼ì²éÓÎÏ·½áÊø
+				if (state == RUNNING) {
+					timeCounter++;
+					if (timeCounter % 100 == 0) {
+						elapsedSeconds++;
+						if (elapsedSeconds >= gameTime) {
+							state = GAME_OVER;
+							showGameOverDialog();
+						}
+					}
+					
+					enterAction();
+					stepAction();
+					shootAction();
+					bangAction();
+					outOfBoundsAction();
+					checkGameOverAction();
 				}
-				repaint(); // ÖØ»æ£¬µ÷ÓÃpaint()·½·¨
+				repaint();
 			}
 
 		}, intervel, intervel);
 	}
+	
+	private void startGame() {
+		flyings = new FlyingObject[0];
+		bullets = new Bullet[0];
+		hero = new Hero();
+		score = 0;
+		missedCount = 0;
+		elapsedSeconds = 0;
+		timeCounter = 0;
+		state = RUNNING;
+	}
+	
+	private void setDifficulty(int diff) {
+		currentDifficulty = diff;
+		switch (diff) {
+			case DIFFICULTY_EASY:
+				enemyBaseSpeed = 1;
+				spawnInterval = 70;
+				break;
+			case DIFFICULTY_MEDIUM:
+				enemyBaseSpeed = 2;
+				spawnInterval = 50;
+				break;
+			case DIFFICULTY_HARD:
+				enemyBaseSpeed = 4;
+				spawnInterval = 30;
+				break;
+		}
+	}
+	
+	private void showGameOverDialog() {
+		String message = "æ¸¸æˆç»“æŸï¼\n\n" +
+		                 "æœ€ç»ˆå¾—åˆ†: " + score + "\n" +
+		                 "æœªæ‹¦æˆªæ•°: " + missedCount + "\n\n" +
+		                 "æ˜¯å¦å†ç©ä¸€æ¬¡ï¼Ÿ";
+		
+		int option = JOptionPane.showConfirmDialog(this, message, "æ¸¸æˆç»“æŸ", 
+		                                           JOptionPane.YES_NO_OPTION,
+		                                           JOptionPane.INFORMATION_MESSAGE);
+		
+		if (option == JOptionPane.YES_OPTION) {
+			resetToStart();
+		}
+	}
+	
+	private void resetToStart() {
+		flyings = new FlyingObject[0];
+		bullets = new Bullet[0];
+		hero = new Hero();
+		score = 0;
+		missedCount = 0;
+		elapsedSeconds = 0;
+		timeCounter = 0;
+		state = START;
+	}
 
-	int flyEnteredIndex = 0; // ·ÉĞĞÎïÈë³¡¼ÆÊı
+	int flyEnteredIndex = 0;
 
-	/** ·ÉĞĞÎïÈë³¡ */
 	public void enterAction() {
 		flyEnteredIndex++;
-		if (flyEnteredIndex % 40 == 0) { // 400ºÁÃëÉú³ÉÒ»¸ö·ÉĞĞÎï--10*40
-			FlyingObject obj = nextOne(); // Ëæ»úÉú³ÉÒ»¸ö·ÉĞĞÎï
+		if (flyEnteredIndex % spawnInterval == 0) {
+			FlyingObject obj = nextOne();
 			flyings = Arrays.copyOf(flyings, flyings.length + 1);
 			flyings[flyings.length - 1] = obj;
 		}
 	}
 
-	/** ×ßÒ»²½ */
 	public void stepAction() {
-		for (int i = 0; i < flyings.length; i++) { // ·ÉĞĞÎï×ßÒ»²½
+		for (int i = 0; i < flyings.length; i++) {
 			FlyingObject f = flyings[i];
 			f.step();
 		}
 
-		for (int i = 0; i < bullets.length; i++) { // ×Óµ¯×ßÒ»²½
+		for (int i = 0; i < bullets.length; i++) {
 			Bullet b = bullets[i];
 			b.step();
 		}
-		hero.step(); // Ó¢ĞÛ»ú×ßÒ»²½
+		hero.step();
 	}
 
-	/** ·ÉĞĞÎï×ßÒ»²½ */
 	public void flyingStepAction() {
 		for (int i = 0; i < flyings.length; i++) {
 			FlyingObject f = flyings[i];
@@ -235,40 +593,41 @@ public class ShootGame extends JPanel {
 		}
 	}
 
-	int shootIndex = 0; // Éä»÷¼ÆÊı
+	int shootIndex = 0;
 
-	/** Éä»÷ */
 	public void shootAction() {
 		shootIndex++;
-		if (shootIndex % 30 == 0) { // 300ºÁÃë·¢Ò»¿Å
-			Bullet[] bs = hero.shoot(); // Ó¢ĞÛ´ò³ö×Óµ¯
-			bullets = Arrays.copyOf(bullets, bullets.length + bs.length); // À©Èİ
+		if (shootIndex % 30 == 0) {
+			Bullet[] bs = hero.shoot();
+			bullets = Arrays.copyOf(bullets, bullets.length + bs.length);
 			System.arraycopy(bs, 0, bullets, bullets.length - bs.length,
-					bs.length); // ×·¼ÓÊı×é
+					bs.length);
 		}
 	}
 
-	/** ×Óµ¯Óë·ÉĞĞÎïÅö×²¼ì²â */
 	public void bangAction() {
-		for (int i = 0; i < bullets.length; i++) { // ±éÀúËùÓĞ×Óµ¯
+		for (int i = 0; i < bullets.length; i++) {
 			Bullet b = bullets[i];
-			bang(b); // ×Óµ¯ºÍ·ÉĞĞÎïÖ®¼äµÄÅö×²¼ì²é
+			bang(b);
 		}
 	}
 
-	/** É¾³ıÔ½½ç·ÉĞĞÎï¼°×Óµ¯ */
 	public void outOfBoundsAction() {
-		int index = 0; // Ë÷Òı
-		FlyingObject[] flyingLives = new FlyingObject[flyings.length]; // »î×ÅµÄ·ÉĞĞÎï
+		int index = 0;
+		FlyingObject[] flyingLives = new FlyingObject[flyings.length];
 		for (int i = 0; i < flyings.length; i++) {
 			FlyingObject f = flyings[i];
 			if (!f.outOfBounds()) {
-				flyingLives[index++] = f; // ²»Ô½½çµÄÁô×Å
+				flyingLives[index++] = f;
+			} else {
+				if (f instanceof Enemy) {
+					missedCount++;
+				}
 			}
 		}
-		flyings = Arrays.copyOf(flyingLives, index); // ½«²»Ô½½çµÄ·ÉĞĞÎï¶¼Áô×Å
+		flyings = Arrays.copyOf(flyingLives, index);
 
-		index = 0; // Ë÷ÒıÖØÖÃÎª0
+		index = 0;
 		Bullet[] bulletLives = new Bullet[bullets.length];
 		for (int i = 0; i < bullets.length; i++) {
 			Bullet b = bullets[i];
@@ -276,89 +635,87 @@ public class ShootGame extends JPanel {
 				bulletLives[index++] = b;
 			}
 		}
-		bullets = Arrays.copyOf(bulletLives, index); // ½«²»Ô½½çµÄ×Óµ¯Áô×Å
+		bullets = Arrays.copyOf(bulletLives, index);
 	}
 
-	/** ¼ì²éÓÎÏ·½áÊø */
 	public void checkGameOverAction() {
-		if (isGameOver()==true) {
-			state = GAME_OVER; // ¸Ä±ä×´Ì¬
+		if (isGameOver() == true) {
+			state = GAME_OVER;
+			showGameOverDialog();
 		}
 	}
 
-	/** ¼ì²éÓÎÏ·ÊÇ·ñ½áÊø */
 	public boolean isGameOver() {
 		
 		for (int i = 0; i < flyings.length; i++) {
 			int index = -1;
 			FlyingObject obj = flyings[i];
-			if (hero.hit(obj)) { // ¼ì²éÓ¢ĞÛ»úÓë·ÉĞĞÎïÊÇ·ñÅö×²
-				hero.subtractLife(); // ¼õÃü
-				hero.setDoubleFire(0); // Ë«±¶»ğÁ¦½â³ı
-				index = i; // ¼ÇÂ¼ÅöÉÏµÄ·ÉĞĞÎïË÷Òı
+			if (hero.hit(obj)) {
+				hero.subtractLife();
+				hero.setDoubleFire(0);
+				index = i;
 			}
 			if (index != -1) {
 				FlyingObject t = flyings[index];
 				flyings[index] = flyings[flyings.length - 1];
-				flyings[flyings.length - 1] = t; // ÅöÉÏµÄÓë×îºóÒ»¸ö·ÉĞĞÎï½»»»
+				flyings[flyings.length - 1] = t;
 
-				flyings = Arrays.copyOf(flyings, flyings.length - 1); // É¾³ıÅöÉÏµÄ·ÉĞĞÎï
+				flyings = Arrays.copyOf(flyings, flyings.length - 1);
 			}
 		}
 		
 		return hero.getLife() <= 0;
 	}
 
-	/** ×Óµ¯ºÍ·ÉĞĞÎïÖ®¼äµÄÅö×²¼ì²é */
 	public void bang(Bullet bullet) {
-		int index = -1; // »÷ÖĞµÄ·ÉĞĞÎïË÷Òı
+		int index = -1;
 		for (int i = 0; i < flyings.length; i++) {
 			FlyingObject obj = flyings[i];
-			if (obj.shootBy(bullet)) { // ÅĞ¶ÏÊÇ·ñ»÷ÖĞ
-				index = i; // ¼ÇÂ¼±»»÷ÖĞµÄ·ÉĞĞÎïµÄË÷Òı
+			if (obj.shootBy(bullet)) {
+				index = i;
 				break;
 			}
 		}
-		if (index != -1) { // ÓĞ»÷ÖĞµÄ·ÉĞĞÎï
-			FlyingObject one = flyings[index]; // ¼ÇÂ¼±»»÷ÖĞµÄ·ÉĞĞÎï
+		if (index != -1) {
+			FlyingObject one = flyings[index];
 
-			FlyingObject temp = flyings[index]; // ±»»÷ÖĞµÄ·ÉĞĞÎïÓë×îºóÒ»¸ö·ÉĞĞÎï½»»»
+			FlyingObject temp = flyings[index];
 			flyings[index] = flyings[flyings.length - 1];
 			flyings[flyings.length - 1] = temp;
 
-			flyings = Arrays.copyOf(flyings, flyings.length - 1); // É¾³ı×îºóÒ»¸ö·ÉĞĞÎï(¼´±»»÷ÖĞµÄ)
+			flyings = Arrays.copyOf(flyings, flyings.length - 1);
 
-			// ¼ì²éoneµÄÀàĞÍ(µĞÈË¼Ó·Ö£¬½±Àø»ñÈ¡)
-			if (one instanceof Enemy) { // ¼ì²éÀàĞÍ£¬ÊÇµĞÈË£¬Ôò¼Ó·Ö
-				Enemy e = (Enemy) one; // Ç¿ÖÆÀàĞÍ×ª»»
-				score += e.getScore(); // ¼Ó·Ö
-			} else { // ÈôÎª½±Àø£¬ÉèÖÃ½±Àø
+			if (one instanceof Enemy) {
+				Enemy e = (Enemy) one;
+				score += e.getScore();
+			} else {
 				Award a = (Award) one;
-				int type = a.getType(); // »ñÈ¡½±ÀøÀàĞÍ
+				int type = a.getType();
 				switch (type) {
 				case Award.DOUBLE_FIRE:
-					hero.addDoubleFire(); // ÉèÖÃË«±¶»ğÁ¦
+					hero.addDoubleFire();
 					break;
 				case Award.LIFE:
-					hero.addLife(); // ÉèÖÃ¼ÓÃü
+					hero.addLife();
 					break;
 				}
 			}
 		}
 	}
 
-	/**
-	 * Ëæ»úÉú³É·ÉĞĞÎï
-	 * 
-	 * @return ·ÉĞĞÎï¶ÔÏó
-	 */
 	public static FlyingObject nextOne() {
 		Random random = new Random();
-		int type = random.nextInt(20); // [0,20)
-		if (type < 4) {
+		int type = random.nextInt(100);
+		if (type < 10) {
 			return new Bee();
-		} else {
+		} else if (type < 40) {
 			return new Airplane();
+		} else if (type < 70) {
+			return new Meteor();
+		} else if (type < 85) {
+			return new UFO();
+		} else {
+			return new Satellite();
 		}
 	}
 

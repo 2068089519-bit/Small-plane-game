@@ -2,13 +2,13 @@ package com.tarena.fly;
 
 import java.util.Random;
 
-public class Airplane extends FlyingObject implements Enemy {
+public class Satellite extends FlyingObject implements Enemy {
 	private int speed;
 	
-	public Airplane() {
+	public Satellite() {
 		this.image = ShootGame.airplane;
-		width = image.getWidth();
-		height = image.getHeight();
+		width = 50;
+		height = 40;
 		y = -height;
 		Random rand = new Random();
 		x = rand.nextInt(ShootGame.WIDTH - width);
@@ -16,14 +16,14 @@ public class Airplane extends FlyingObject implements Enemy {
 	}
 	
 	private int calculateSpeed() {
-		int baseSpeed = ShootGame.getEnemyBaseSpeed();
+		int baseSpeed = ShootGame.getEnemyBaseSpeed() + 1;
 		Random rand = new Random();
 		return baseSpeed + rand.nextInt(2);
 	}
 	
 	@Override
 	public int getScore() {
-		return 5;
+		return 15;
 	}
 
 	@Override
@@ -35,6 +35,4 @@ public class Airplane extends FlyingObject implements Enemy {
 	public void step() {
 		y += speed;
 	}
-
 }
-
